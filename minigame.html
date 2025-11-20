@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Combined Game — Dodge → Dino</title>
+    <style>
+      body {
+        background: #f2f2f2;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial;
+      }
+      canvas {
+        background: #fff;
+        border: 2px solid #333;
+      }
+      #msg {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="msg">Welcome! Survive the falling balls first!</div>
+    <canvas id="game" width="800" height="300"></canvas>
+
+    <script>
+      const canvas = document.getElementById("game"),
+        ctx = canvas.getContext("2d");
+      let mode = "dodge"; // dodge → dino → end
+
+      /* ------------------ DODGE GAME ------------------ */
+      let player = {
+        x: canvas.width / 2,
+        y: canvas.height - 40,
+        r: 20,
+        speed: 6,
+      };
+      let bullets = [],
+        score1 = 0,
+        over1 = false;
+      let left = false,
+        right = false;
+
+      function spawnBullet() {
+        if (mode !== "dodge") return;
+        bullets.push({
+          x: Math.random() * (canvas.width - 30) + 15,
+          y: -10,
+          r: 10 + Math.random() * 15,
+          vy: 2 + Math.random() * 2,
+        });
+      }
+      setInterval(spawnBullet, 850);
+
+      document.addEventListener("keydown", (e) => {
+        if (mode === "dodge") {
+          if (e.code === "ArrowLeft") left = true;
+          if (e.code === "ArrowRight") right = true;
+        }
+        if (e.key.toLowerCase() === "r") {
+          if (mode === "dodge" && over1) resetDodge();
+          if (mode === "dino" && gameOver2) resetDino();
+        }
+        if (
+          mode === "dino" &&
+          !gameOver2 &&
+          (e.code === "Space" || e.code === "ArrowUp") &&
+          dino.onGround
+        ) {
+          dino.vy = dino.jump;
+          dino.onGround = false;
+        }
+      });
+      document.addEventListener("keyup", (e) => {
+        if (e.code === "ArrowLeft") left = false;
+        if (e.code === "ArrowRight") right = false;
+      });
+
+      function updateDodge() {
+        if (mode !== "dodge") return;
+        if (over1) return drawDodge();
+
+        if (left) player.x -= player.speed;
+        if (right) player.x += player.speed;
+        player.x = Math.max(
+          player.r,
+          Math.min(canvas.width - player.r, player.x)
+        );
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          let b = bullets[i];
+          b.y += b.vy;
+          if (b.y - b.r > canvas.height) {
+            bullets.splice(i, 1);
+            score1++;
+          }
+
+          let dx = b.x - player.x,
+            dy = b.y - player.y;
+          if (Math.hypot(dx, dy) < b.r + player.r) over1 = true;
+        }
+
+        if (score1 >= 20) {
+          mode = "dino";
+          document.getElementById("msg").innerText = "Level 2: Dino Runner!";
+        }
+
+        drawDodge();
+      }
+
+      function drawDodge() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#0077cc";
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let b of bullets) {
+          ctx.fillStyle = "#ff4d4f";
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = "#222";
+        ctx.font = "20px Arial";
+        ctx.fillText("Score: " + score1, 10, 30);
+
+        if (over1) {
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#fff";
+          ctx.font = "24px Arial";
+          ctx.fillText("Game Over — Press R to restart", 200, 150);
+        }
+      }
+
+      function resetDodge() {
+        bullets = [];
+        score1 = 0;
+        over1 = false;
+        player.x = canvas.width / 2;
+      }
+
+      /* ------------------ DINO RUNNER ------------------ */
+      let groundY = 240,
+        speed = 6,
+        score2 = 0,
+        gameOver2 = false;
+
+      const dino = {
+        x: 50,
+        y: groundY - 40,
+        w: 40,
+        h: 40,
+        vy: 0,
+        gravity: 0.9,
+        jump: -16,
+        onGround: true,
+      };
+      let obstacles = [];
+
+      function spawnObstacle2() {
+        if (mode !== "dino") return;
+        const h = 20 + Math.random() * 30;
+        obstacles.push({
+          x: canvas.width + 20,
+          y: groundY - h,
+          w: 20 + Math.random() * 20,
+          h,
+        });
+      }
+      setInterval(spawnObstacle2, 1300);
+
+      function updateDino() {
+        if (mode !== "dino") return;
+        if (gameOver2) return drawDino();
+
+        dino.vy += dino.gravity;
+        dino.y += dino.vy;
+        if (dino.y > groundY - dino.h) {
+          dino.y = groundY - dino.h;
+          dino.vy = 0;
+          dino.onGround = true;
+        }
+
+        for (let i = obstacles.length - 1; i >= 0; --i) {
+          obstacles[i].x -= speed;
+          if (obstacles[i].x + obstacles[i].w < 0) {
+            obstacles.splice(i, 1);
+            score2++;
+          }
+        }
+
+        for (let o of obstacles) {
+          if (
+            dino.x < o.x + o.w &&
+            dino.x + dino.w > o.x &&
+            dino.y < o.y + o.h &&
+            dino.y + dino.h > o.y
+          ) {
+            gameOver2 = true;
+          }
+        }
+
+        if (score2 >= 20) {
+          mode = "end";
+          document.getElementById("msg").innerText =
+            "Congratulations! You finished both games!";
+        }
+
+        drawDino();
+      }
+
+      function drawDino() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#222";
+        ctx.fillRect(0, groundY, canvas.width, 4);
+
+        ctx.fillStyle = "#4caf50";
+        ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+
+        ctx.fillStyle = "#9e2a2b";
+        for (let o of obstacles) ctx.fillRect(o.x, o.y, o.w, o.h);
+
+        ctx.fillStyle = "#333";
+        ctx.font = "18px Arial";
+        ctx.fillText("Score: " + score2, canvas.width - 120, 30);
+
+        if (gameOver2) {
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#fff";
+          ctx.font = "28px Arial";
+          ctx.fillText("Game Over — Press R to restart", 200, 150);
+        }
+      }
+
+      function resetDino() {
+        obstacles = [];
+        score2 = 0;
+        speed = 6;
+        gameOver2 = false;
+        dino.y = groundY - dino.h;
+      }
+
+      /* ------------------ MAIN LOOP ------------------ */
+      function loop() {
+        if (mode === "dodge") updateDodge();
+        if (mode === "dino") updateDino();
+        if (mode === "end") {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#000";
+          ctx.font = "32px Arial";
+          ctx.fillText(
+            "🎉 Congratulations! You finished all levels!",
+            100,
+            150
+          );
+        }
+        requestAnimationFrame(loop);
+      }
+
+      loop();
+    </script>
+  </body>
+</html>
